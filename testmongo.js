@@ -1,54 +1,60 @@
 const { MongoClient } = require("mongodb");
+const express = require("express");
 
-// The uri string must be the connection string for the database (obtained on Atlas).
-const uri = "mongodb+srv://eachristian335:<db_password>@415codeexample-edward.eaahyiy.mongodb.net/?retryWrites=true&w=majority&appName=415codeexample-edward";
-
-// --- This is the standard stuff to get it to work on the browser
-const express = require('express');
 const app = express();
 const port = 3000;
-app.listen(port);
-console.log('Server started at http://localhost:' + port);
 
+// ✅ Updated MongoDB URI with TLS fix
+const uri = "mongodb+srv://eachristian335:CMPS415PW@cmps415-edawrd.4m3amxt.mongodb.net/?retryWrites=true&w=majority&tls=true&tlsAllowInvalidCertificates=true";
+
+// ✅ Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// routes will go here
-
-// Default route:
-app.get('/', function(req, res) {
-  res.send('Starting... ');
+// ✅ Start server
+app.listen(port, () => {
+  console.log(`✅ Server started at http://localhost:${port}`);
 });
 
-app.get('/say/:name', function(req, res) {
-  res.send('Hello ' + req.params.name + '!');
+// ✅ Root route
+app.get("/", (req, res) => {
+  res.send("Server is running.");
 });
 
+// ✅ Test greeting
+app.get("/say/:name", (req, res) => {
+  res.send(`Hello ${req.params.name}!`);
+});
 
-// Route to access database:
-app.get('/api/mongo/:item', function(req, res) {
-const client = new MongoClient(uri);
-const searchKey = "{ partID: '" + req.params.item + "' }";
-console.log("Looking for: " + searchKey);
+// ✅ MongoDB lookup route
+app.get("/api/mongo/:item", async (req, res) => {
+  const client = new MongoClient(uri, {
+    tls: true,
+    tlsAllowInvalidCertificates: true
+  });
 
-async function run() {
+  const searchKey = req.params.item;
+  console.log(`🔍 Searching for document with name: ${searchKey}`);
+
   try {
-    const database = client.db('ckmdb');
-    const parts = database.collection('cmps415');
+    await client.connect();
+    const db = client.db("cmps415");
+    const collection = db.collection("cmps");
 
-    // Hardwired Query for a part that has partID '12345'
-    // const query = { partID: '12345' };
-    // But we will use the parameter provided with the route
-    const query = { partID: req.params.item };
+    const query = { name: searchKey };
+    const result = await collection.findOne(query);
 
-    const part = await parts.findOne(query);
-    console.log(part);
-    res.send('Found this: ' + JSON.stringify(part));  //Use stringify to print a json
-
+    if (result) {
+      console.log("✅ Document found:", result);
+      res.status(200).send("Found this: " + JSON.stringify(result));
+    } else {
+      console.log("❌ No document found with that name.");
+      res.status(404).send("No document found with that name.");
+    }
+  } catch (err) {
+    console.error("❗️MongoDB error:", err.message);
+    res.status(500).send("Error accessing database.");
   } finally {
-    // Ensures that the client will close when you finish/error
     await client.close();
   }
-}
-run().catch(console.dir);
 });
